@@ -83,12 +83,13 @@ def imread(filename, resample=False, samples=None, lines=None):
         return band.ReadAsArray()
 
 
-def imfill_skimage(img):
+def imfill_skimage(img, band):
     """ Replicates the imfill function available within MATLAB. Based on the
     example provided in
     http://scikit-image.org/docs/dev/auto_examples/plot_holes_and_peaks.html#example-plot-holes-and-peaks-py.
 
     """
+    global geoT, prj
 
     seed = img.copy()
 
@@ -101,33 +102,36 @@ def imfill_skimage(img):
     # Fill the holes
     filled = morphology.reconstruction(seed, mask, method='erosion')
 
-    c = gdal.GetDriverByName('ENVI').Create('/home/peter/shared/filled', img.shape[
+
+
+    c = gdal.GetDriverByName('ENVI').Create('/home/peter/shared/'+band+'seed', img.shape[
         1], img.shape[0], 1, gdal.GDT_Byte)
-    
-    global geoT, prj
-    """
-    In spite of trying global variables, the following lines cause an error:
-        Traceback (most recent call last):
-          File "prepare_landsat_image.py", line 131, in <module>
-            prepare(filename, path)
-          File "prepare_landsat_image.py", line 38, in prepare
-            cloud_mask(path)
-          File "prepare_landsat_image.py", line 59, in cloud_mask
-            run_FMask(mtl_filename)
-          File "/home/peter/shared/pythonmodules/PyFMask/PyFMask/fmask.py", line 1967, in run_FMask
-            mtl, cldprob, num_Lst=Lnum, shadow_prob=True)
-          File "/home/peter/shared/pythonmodules/PyFMask/PyFMask/fmask.py", line 1055, in plcloud
-            nir = imfill_skimage(nir)
-          File "/home/peter/shared/pythonmodules/PyFMask/PyFMask/fmask.py", line 108, in imfill_skimage
-            c.SetGeoTransform(geoT)
-          File "/home/peter/anaconda/lib/python2.7/site-packages/osgeo/gdal.py", line 676, in SetGeoTransform
-            return _gdal.Dataset_SetGeoTransform(self, *args)
-        TypeError: not a sequence
-    """
     c.SetGeoTransform(geoT)
     c.SetProjection(prj)
-    c.GetRasterBand(1).WriteArray(filled)
+    c.GetRasterBand(1).WriteArray(seed)
+    seed = None
     c = None
+
+    c = gdal.GetDriverByName('ENVI').Create('/home/peter/shared/'+band+'mask', img.shape[
+        1], img.shape[0], 1, gdal.GDT_Byte)
+    c.SetGeoTransform(geoT)
+    c.SetProjection(prj)
+    c.GetRasterBand(1).WriteArray(mask)
+    mask = None
+    c = None
+
+    filled_write = filled.copy()
+    c = gdal.GetDriverByName('ENVI').Create('/home/peter/shared/'+band+'filled', filled.shape[
+        1], filled.shape[0], 1, gdal.GDT_Byte)
+    c.SetGeoTransform(geoT)
+    c.SetProjection(prj)
+    c.GetRasterBand(1).WriteArray(filled_write)
+    # OK this breaks the function, but is needed to write the file to disk???
+    filled_write = None
+    c = None
+
+    #sys.exit()
+
     return filled
 
 
@@ -846,6 +850,7 @@ def plcloud(filename, cldprob=22.5, num_Lst=None, images=None,
                water mask, snow mask, cloud mask, shadow probability,dim,
                ul,resolu,zc).
     """
+    global geoT, prj
     Temp, data, dim, ul, zen, azi, zc, satu_B1, satu_B2, satu_B3, resolu, geoT, prj = nd2toarbt(
         filename, images)
 
@@ -1071,7 +1076,7 @@ def plcloud(filename, cldprob=22.5, num_Lst=None, images=None,
             backg_B4 = scipy.stats.scoreatpercentile(nir[idlnd], 100.0 * l_pt)
             nir[mask == 0] = backg_B4
             # fill in regional minimum Band 4 ref
-            nir = imfill_skimage(nir)
+            nir = imfill_skimage(nir, 'B4')
             nir = nir - data4
 
             # band 5 flood fill
@@ -1080,7 +1085,7 @@ def plcloud(filename, cldprob=22.5, num_Lst=None, images=None,
             backg_B5 = scipy.stats.scoreatpercentile(swir[idlnd], 100.0 * l_pt)
             swir[mask == 0] = backg_B5
             # fill in regional minimum Band 5 ref
-            swir = imfill_skimage(swir)
+            swir = imfill_skimage(swir, 'B5')
             swir = swir - data5
 
             # compute shadow probability
