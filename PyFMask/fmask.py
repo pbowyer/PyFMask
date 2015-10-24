@@ -33,6 +33,8 @@ from skimage import segmentation
 skimage_version = [int(n) for n in skimage.__version__.split('.') if n != '']
 
 logger = logging.getLogger('root.' + __name__)
+geoT = None
+prj = None
 
 # Sun earth distance look up table
 sun_earth_distance = {1: 0.98331, 2: 0.98330, 3: 0.98330, 4: 0.98330, 5: 0.98330, 6: 0.98332, 7: 0.98333, 8: 0.98335, 9: 0.98338, 10: 0.98341, 11: 0.98345, 12: 0.98349, 13: 0.98354, 14: 0.98359, 15: 0.98365, 16: 0.98371, 17: 0.98378, 18: 0.98385, 19: 0.98393, 20: 0.98401, 21: 0.98410, 22: 0.98419, 23: 0.98428, 24: 0.98439, 25: 0.98449, 26: 0.98460, 27: 0.98472, 28: 0.98484, 29: 0.98496, 30: 0.98509, 31: 0.98523, 32: 0.98536, 33: 0.98551, 34: 0.98565, 35: 0.98580, 36: 0.98596, 37: 0.98612, 38: 0.98628, 39: 0.98645, 40: 0.98662, 41: 0.98680, 42: 0.98698, 43: 0.98717, 44: 0.98735, 45: 0.98755, 46: 0.98774, 47: 0.98794, 48: 0.98814, 49: 0.98835, 50: 0.98856, 51: 0.98877, 52: 0.98899, 53: 0.98921, 54: 0.98944, 55: 0.98966, 56: 0.98989, 57: 0.99012, 58: 0.99036, 59: 0.99060, 60: 0.99084, 61: 0.99108, 62: 0.99133, 63: 0.99158, 64: 0.99183, 65: 0.99208, 66: 0.99234, 67: 0.99260, 68: 0.99286, 69: 0.99312, 70: 0.99339, 71: 0.99365, 72: 0.99392, 73: 0.99419, 74: 0.99446, 75: 0.99474, 76: 0.99501, 77: 0.99529, 78: 0.99556, 79: 0.99584, 80: 0.99612, 81: 0.99640, 82: 0.99669, 83: 0.99697, 84: 0.99725, 85: 0.99754, 86: 0.99782, 87: 0.99811, 88: 0.99840, 89: 0.99868, 90: 0.99897, 91: 0.99926, 92: 0.99954, 93: 0.99983, 94: 1.00012, 95: 1.00041, 96: 1.00069, 97: 1.00098, 98: 1.00127, 99: 1.00155, 100: 1.00184, 101: 1.00212, 102: 1.00240, 103: 1.00269, 104: 1.00297, 105: 1.00325, 106: 1.00353, 107: 1.00381, 108: 1.00409, 109: 1.00437, 110: 1.00464, 111: 1.00492, 112: 1.00519, 113: 1.00546, 114: 1.00573, 115: 1.00600, 116: 1.00626, 117: 1.00653, 118: 1.00679, 119: 1.00705, 120: 1.00731, 121: 1.00756, 122: 1.00781, 123: 1.00806, 124: 1.00831, 125: 1.00856, 126: 1.00880, 127: 1.00904, 128: 1.00928, 129: 1.00952, 130: 1.00975, 131: 1.00998, 132: 1.01020, 133: 1.01043, 134: 1.01065, 135: 1.01087, 136: 1.01108, 137: 1.01129, 138: 1.01150, 139: 1.01170, 140: 1.01191, 141: 1.01210, 142: 1.01230, 143: 1.01249, 144: 1.01267, 145: 1.01286, 146: 1.01304, 147: 1.01321, 148: 1.01338, 149: 1.01355, 150: 1.01371, 151: 1.01387, 152: 1.01403, 153: 1.01418, 154: 1.01433, 155: 1.01447, 156: 1.01461, 157: 1.01475, 158: 1.01488, 159: 1.01500, 160: 1.01513, 161: 1.01524, 162: 1.01536, 163: 1.01547, 164: 1.01557, 165: 1.01567, 166: 1.01577, 167: 1.01586, 168: 1.01595, 169: 1.01603, 170: 1.01610, 171: 1.01618, 172: 1.01625, 173: 1.01631, 174: 1.01637, 175: 1.01642, 176: 1.01647, 177: 1.01652, 178: 1.01656, 179: 1.01659, 180: 1.01662, 181: 1.01665, 182: 1.01667, 183: 1.01668, 184: 1.01670, 185: 1.01670, 186: 1.01670,
@@ -99,6 +101,33 @@ def imfill_skimage(img):
     # Fill the holes
     filled = morphology.reconstruction(seed, mask, method='erosion')
 
+    c = gdal.GetDriverByName('ENVI').Create('/home/peter/shared/filled', img.shape[
+        1], img.shape[0], 1, gdal.GDT_Byte)
+    
+    global geoT, prj
+    """
+    In spite of trying global variables, the following lines cause an error:
+        Traceback (most recent call last):
+          File "prepare_landsat_image.py", line 131, in <module>
+            prepare(filename, path)
+          File "prepare_landsat_image.py", line 38, in prepare
+            cloud_mask(path)
+          File "prepare_landsat_image.py", line 59, in cloud_mask
+            run_FMask(mtl_filename)
+          File "/home/peter/shared/pythonmodules/PyFMask/PyFMask/fmask.py", line 1967, in run_FMask
+            mtl, cldprob, num_Lst=Lnum, shadow_prob=True)
+          File "/home/peter/shared/pythonmodules/PyFMask/PyFMask/fmask.py", line 1055, in plcloud
+            nir = imfill_skimage(nir)
+          File "/home/peter/shared/pythonmodules/PyFMask/PyFMask/fmask.py", line 108, in imfill_skimage
+            c.SetGeoTransform(geoT)
+          File "/home/peter/anaconda/lib/python2.7/site-packages/osgeo/gdal.py", line 676, in SetGeoTransform
+            return _gdal.Dataset_SetGeoTransform(self, *args)
+        TypeError: not a sequence
+    """
+    c.SetGeoTransform(geoT)
+    c.SetProjection(prj)
+    c.GetRasterBand(1).WriteArray(filled)
+    c = None
     return filled
 
 
@@ -1949,6 +1978,8 @@ def run_FMask(mtl, outdir=None, cldprob=22.5, cldpix=3, sdpix=3, snpix=3):
     # Identify Landsat Number (Lnum = 4, 5 or 7)
     LID = data['SPACECRAFT_ID']
     Lnum = int(LID[len(LID) - 1])
+
+    global geoT, prj
 
     st = datetime.datetime.now()
     zen, azi, ptm, Temp, t_templ, t_temph, WT, Snow, Cloud, Shadow, dim, ul, resolu, zc, geoT, prj = plcloud(
