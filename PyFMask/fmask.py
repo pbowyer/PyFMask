@@ -24,7 +24,7 @@ import numexpr
 import scipy.stats
 import scipy.signal
 import scipy.ndimage.morphology
-from osgeo import gdal
+from osgeo import gdal, gdal_array
 import skimage
 from skimage import morphology
 from skimage import measure
@@ -105,15 +105,15 @@ def imfill_skimage(img, band):
 
 
     c = gdal.GetDriverByName('ENVI').Create('/home/peter/shared/'+band+'seed', img.shape[
-        1], img.shape[0], 1, gdal.GDT_Byte)
+        1], img.shape[0], 1, gdal_array.NumericTypeCodeToGDALTypeCode(img.dtype.type))
     c.SetGeoTransform(geoT)
     c.SetProjection(prj)
     c.GetRasterBand(1).WriteArray(seed)
     seed = None
     c = None
 
-    c = gdal.GetDriverByName('ENVI').Create('/home/peter/shared/'+band+'mask', img.shape[
-        1], img.shape[0], 1, gdal.GDT_Byte)
+    c = gdal.GetDriverByName('ENVI').Create('/home/peter/shared/'+band+'mask', mask.shape[
+        1], mask.shape[0], 1, gdal_array.NumericTypeCodeToGDALTypeCode(mask.dtype.type))
     c.SetGeoTransform(geoT)
     c.SetProjection(prj)
     c.GetRasterBand(1).WriteArray(mask)
@@ -122,7 +122,7 @@ def imfill_skimage(img, band):
 
     filled_write = filled.copy()
     c = gdal.GetDriverByName('ENVI').Create('/home/peter/shared/'+band+'filled', filled.shape[
-        1], filled.shape[0], 1, gdal.GDT_Byte)
+        1], filled.shape[0], 1, gdal_array.NumericTypeCodeToGDALTypeCode(filled.dtype.type))
     c.SetGeoTransform(geoT)
     c.SetProjection(prj)
     c.GetRasterBand(1).WriteArray(filled_write)
@@ -1077,7 +1077,24 @@ def plcloud(filename, cldprob=22.5, num_Lst=None, images=None,
             nir[mask == 0] = backg_B4
             # fill in regional minimum Band 4 ref
             nir = imfill_skimage(nir, 'B4')
+
+            nir2 = nir.copy()
+            c = gdal.GetDriverByName('ENVI').Create('/home/peter/shared/nir_pre', nir2.shape[
+                1], nir2.shape[0], 1, gdal_array.NumericTypeCodeToGDALTypeCode(nir.dtype.type))
+            c.SetGeoTransform(geoT)
+            c.SetProjection(prj)
+            c.GetRasterBand(1).WriteArray(nir2)
+            nir2 = None
+            c = None
+
             nir = nir - data4
+
+            c = gdal.GetDriverByName('ENVI').Create('/home/peter/shared/nir_post', nir.shape[
+                1], nir.shape[0], 1, gdal_array.NumericTypeCodeToGDALTypeCode(nir.dtype.type))
+            c.SetGeoTransform(geoT)
+            c.SetProjection(prj)
+            c.GetRasterBand(1).WriteArray(nir)
+            c = None
 
             # band 5 flood fill
             swir = data5
